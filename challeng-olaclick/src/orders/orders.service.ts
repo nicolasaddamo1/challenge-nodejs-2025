@@ -1,4 +1,4 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, BadRequestException, NotFoundException } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { InjectModel } from '@nestjs/sequelize';
@@ -43,7 +43,32 @@ export class OrdersService {
             }))
         );
 
-        await this.cacheManager.del('orders'); // Invalidar cache
+        await this.cacheManager.del('orders');
         return { ...order.toJSON(), items };
+    }
+    async advanceOrder(id: number) {
+        const order = await this.orderModel.findByPk(id);
+        if (!order) throw new NotFoundException('Order not found');
+
+        const transitions = {
+            initiated: 'sent',
+            sent: 'delivered'
+        };
+
+        if (!transitions[order.status]) {
+            throw new BadRequestException('Order cannot be advanced further');
+        }
+
+        const newStatus = transitions[order.status];
+        await order.update({ status: newStatus });
+
+        if (newStatus === 'delivered') {
+            await order.destroy();
+            await this.cacheManager.del('orders');
+        } else {
+            await this.cacheManager.del('orders');
+        }
+
+        return { status: newStatus };
     }
 }
