@@ -2,9 +2,10 @@ import { Injectable, Inject } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { InjectModel } from '@nestjs/sequelize';
+import { Op } from 'sequelize';
 import { Order } from './entities/order.model';
 import { OrderItem } from './entities/order-item.model';
-import { CreateOrderDto } from './dto/create-order.dto';
+import { CreateOrderDto } from './dto/create-orders.dto';
 
 @Injectable()
 export class OrdersService {
@@ -25,7 +26,7 @@ export class OrdersService {
             include: [OrderItem]
         });
 
-        await this.cacheManager.set('orders', orders, 30000); // 30 segundos
+        await this.cacheManager.set('orders', orders, 30000);
         return orders;
     }
 
