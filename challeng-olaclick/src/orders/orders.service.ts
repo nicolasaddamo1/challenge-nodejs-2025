@@ -16,6 +16,20 @@ export class OrdersService {
         private orderItemModel: typeof OrderItem,
         @Inject(CACHE_MANAGER) private cacheManager: Cache
     ) { }
+    async findOne(id: number) {
+        const cachedKey = `order_${id}`;
+        const cached = await this.cacheManager.get(cachedKey);
+        if (cached) return cached;
+
+        const order = await this.orderModel.findByPk(id, {
+            include: [OrderItem]
+        });
+
+        if (!order) throw new NotFoundException('Order not found');
+
+        await this.cacheManager.set(cachedKey, order, 30000);
+        return order;
+    }
 
     async findAll() {
         const cached = await this.cacheManager.get('orders');
