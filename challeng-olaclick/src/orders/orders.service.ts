@@ -63,38 +63,45 @@ export class OrdersService {
     async advanceOrder(id: number) {
         const order = await this.orderModel.findByPk(id, {
             paranoid: false,
+            rejectOnEmpty: new NotFoundException('Order not found')
         });
 
-        if (!order) throw new NotFoundException('Order not found');
-        if (order.deletedAt) throw new BadRequestException('Order was already delivered and removed');
+        const currentStatus = order.getDataValue('status');
 
-        const stateMachine = {
-            initiated: 'sent',
-            sent: 'delivered',
-            delivered: null
-        };
-
-        const nextStatus = stateMachine[order.status];
-
-        if (!nextStatus) {
-            throw new BadRequestException(`Order cannot be advanced from status ${order.status}`);
+        if (!currentStatus) {
+            throw new BadRequestException('Order status is missing');
         }
 
-        if (nextStatus === 'delivered') {
+        const stateTransitions = {
+            initiated: { next: 'sent', valid: true },
+            sent: { next: 'delivered', valid: true },
+            delivered: { next: null, valid: false }
+        };
+
+        const transition = stateTransitions[currentStatus];
+
+        if (!transition || !transition.valid) {
+            throw new BadRequestException(
+                `Cannot advance order from current status: ${currentStatus}`
+            );
+        }
+
+        if (transition.next === 'delivered') {
             await order.destroy();
             await this.cacheManager.del(`order_${id}`);
             await this.cacheManager.del('orders');
         } else {
-            await order.update({ status: nextStatus });
+            await order.update({ status: transition.next });
             await this.cacheManager.del(`order_${id}`);
             await this.cacheManager.del('orders');
         }
 
         return {
-            id: order.id,
-            previousStatus: order.status,
-            newStatus: nextStatus,
-            timestamp: new Date().toISOString()
+            success: true,
+            orderId: order.id,
+            previousStatus: currentStatus,
+            newStatus: transition.next,
+            timestamp: new Date()
         };
     }
 }

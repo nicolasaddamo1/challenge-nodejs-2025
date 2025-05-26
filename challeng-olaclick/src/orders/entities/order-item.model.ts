@@ -4,18 +4,18 @@ import { Order } from './order.model';
 @Table({ tableName: 'order_items' })
 export class OrderItem extends Model {
     @Column
-    description: string;
+    declare description: string;
 
     @Column
-    quantity: number;
+    declare quantity: number;
 
     @Column({ type: DataType.FLOAT })
-    unitPrice: number;
+    declare unitPrice: number;
 
     @ForeignKey(() => Order)
     @Column
-    orderId: number;
+    declare orderId: number;
 
     @BelongsTo(() => Order)
-    order: Order;
+    declare order: Order;
 }

@@ -5,9 +5,10 @@ import { OrderItem } from './order-item.model';
 export class Order extends Model {
     @Column({
         type: DataType.ENUM('initiated', 'sent', 'delivered'),
-        defaultValue: 'initiated'
+        defaultValue: 'initiated',
+        allowNull: false
     })
-    status: string;
+    declare status: string;
 
     @Column
     clientName: string;
