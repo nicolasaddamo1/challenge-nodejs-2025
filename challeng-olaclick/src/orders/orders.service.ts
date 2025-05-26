@@ -61,28 +61,40 @@ export class OrdersService {
         return { ...order.toJSON(), items };
     }
     async advanceOrder(id: number) {
-        const order = await this.orderModel.findByPk(id);
-        if (!order) throw new NotFoundException('Order not found');
+        const order = await this.orderModel.findByPk(id, {
+            paranoid: false,
+        });
 
-        const transitions = {
+        if (!order) throw new NotFoundException('Order not found');
+        if (order.deletedAt) throw new BadRequestException('Order was already delivered and removed');
+
+        const stateMachine = {
             initiated: 'sent',
-            sent: 'delivered'
+            sent: 'delivered',
+            delivered: null
         };
 
-        if (!transitions[order.status]) {
-            throw new BadRequestException('Order cannot be advanced further');
+        const nextStatus = stateMachine[order.status];
+
+        if (!nextStatus) {
+            throw new BadRequestException(`Order cannot be advanced from status ${order.status}`);
         }
 
-        const newStatus = transitions[order.status];
-        await order.update({ status: newStatus });
-
-        if (newStatus === 'delivered') {
+        if (nextStatus === 'delivered') {
             await order.destroy();
+            await this.cacheManager.del(`order_${id}`);
             await this.cacheManager.del('orders');
         } else {
+            await order.update({ status: nextStatus });
+            await this.cacheManager.del(`order_${id}`);
             await this.cacheManager.del('orders');
         }
 
-        return { status: newStatus };
+        return {
+            id: order.id,
+            previousStatus: order.status,
+            newStatus: nextStatus,
+            timestamp: new Date().toISOString()
+        };
     }
 }
